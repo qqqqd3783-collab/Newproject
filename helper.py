@@ -257,20 +257,22 @@ class LiveScreenWindow(QWidget):
         self.current_frame = None
 
     def update_frame(self):
-        try:
-            while len(self.data) < self.payload_size:
-                self.data += self.client.recv(4096)
-            packed_size = self.data[:self.payload_size]
-            self.data = self.data[self.payload_size:]
-            msg_size = struct.unpack(">L", packed_size)[0]
-            while len(self.data) < msg_size:
-                self.data += self.client.recv(4096)
-            frame_data = self.data[:msg_size]
-            self.data = self.data[msg_size:]
-            frame = pickle.loads(frame_data)
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            self.current_frame = frame
-            h, w, ch = frame.shape
-            qimg = QImage(frame.data, w, h, ch*w, QImage.Format_RGB888)
-            self.label.setPixmap(QPixmap.fromImage(qimg).scaled(
-                self.label.width(), self.label.height()))
+    try:
+        while len(self.data) < self.payload_size:
+            self.data += self.client.recv(4096)
+        packed_size = self.data[:self.payload_size]
+        self.data = self.data[self.payload_size:]
+        msg_size = struct.unpack(">L", packed_size)[0]
+        while len(self.data) < msg_size:
+            self.data += self.client.recv(4096)
+        frame_data = self.data[:msg_size]
+        self.data = self.data[msg_size:]
+        frame = pickle.loads(frame_data)
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        self.current_frame = frame
+        h, w, ch = frame.shape
+        qimg = QImage(frame.data, w, h, ch*w, QImage.Format_RGB888)
+        self.label.setPixmap(QPixmap.fromImage(qimg).scaled(
+            self.label.width(), self.label.height()))
+    except Exception as e:
+        print(f"เกิดข้อผิดพลาดในการรับเฟรม: {e}")
